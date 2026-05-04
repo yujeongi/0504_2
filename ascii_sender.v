@@ -5,7 +5,7 @@ module ascii_sender (
     input rst,
     input status,
     input full,
-    input [3:0] sw, //sw[2], sw[3]만 쓸건데 일단은 걍 다받음
+    input [3:0] sw,
     //{sw[2], sw[3]} = 00:stopwatch, 01:watch, 10:SR04, 11:DHT11
     input [31:0] data_in,
     output push,
@@ -24,24 +24,17 @@ module ascii_sender (
     SEND_UNIT_STAR = 10,  //'*' 전송
     SEND_UNIT_CM = 11,  // 'cm' 전송
     SEND_UNIT_COLON = 12,  //':' 전송
-    SEND_BLANK = 13,
-                WAIT_DATA_2=14,
-                WAIT_DATA_4=15,
-                WAIT_DATA_6=16,
-                WAIT_DATA_LSB=17,
-                WAIT_BLANK = 18;
+    SEND_BLANK = 13;
 
     reg push_reg, push_next;
-    reg [4:0] c_state, n_state;
+    reg [3:0] c_state, n_state;
     reg [7:0] data_out_reg, data_out_next;
     reg [1:0] cm_cnt_reg, cm_cnt_next;  // for cm_cnt_next
     reg [2:0] time_cnt_reg, time_cnt_next;
-    //reg status_reg;
 
     assign push = push_reg;
     assign data_out = data_out_reg;
 
-    //wire status_pulse = status & ~status_reg;
 
     always @(posedge clk, posedge rst) begin
         if (rst) begin
@@ -50,14 +43,12 @@ module ascii_sender (
             data_out_reg <= 0;
             cm_cnt_reg   <= 0;
             time_cnt_reg <= 0;
-            //status_reg   <= 0;
         end else begin
             push_reg     <= push_next;
             c_state      <= n_state;
             data_out_reg <= data_out_next;
             cm_cnt_reg   <= cm_cnt_next;
             time_cnt_reg <= time_cnt_next;
-            //status_reg   <= status;
         end
     end
 
@@ -85,16 +76,12 @@ module ascii_sender (
                 if (!full) begin
                     push_next = 1;
                     data_out_next = {4'h3, data_in[27:24]};
-                    n_state = WAIT_DATA_2;
-                end
-            end
-            WAIT_DATA_2: begin
-                push_next = 0;
-                if (!sw[3]) begin  //timer
-                    time_cnt_next = 0;
-                    n_state = SEND_UNIT_COLON;
-                end else if (sw[3]) begin // sensor
-                    n_state = SEND_DATA_3;
+                    if (!sw[3]) begin  //timer
+                        time_cnt_next = 0;
+                        n_state = SEND_UNIT_COLON;
+                    end else if (sw[3]) begin  // sensor
+                        n_state = SEND_DATA_3;
+                    end
                 end
             end
             SEND_DATA_3: begin
@@ -108,15 +95,11 @@ module ascii_sender (
                 if (!full) begin
                     push_next = 1;
                     data_out_next = {4'h3, data_in[19:16]};
-                    n_state = WAIT_DATA_4;
-                end
-            end
-            WAIT_DATA_4: begin
-                push_next=0;
-                if (!sw[3]) begin  //timer
+                    if (!sw[3]) begin  //timer
                     n_state = SEND_UNIT_COLON;
-                end else if (sw[3]) begin //sensor
+                end else if (sw[3]) begin  //sensor
                     n_state = SEND_DATA_5;
+                end
                 end
             end
             SEND_DATA_5: begin
@@ -130,17 +113,13 @@ module ascii_sender (
                 if (!full) begin
                     push_next = 1;
                     data_out_next = {4'h3, data_in[11:8]};
-                    n_state = WAIT_DATA_6;
-                end
-            end
-            WAIT_DATA_6: begin
-                push_next=0;
-                if (sw[3] && sw[2]) begin  //sensor, dht11
+                    if (sw[3] && sw[2]) begin  //sensor, dht11
                     n_state = SEND_UNIT_PERCENT;
                 end else if (!sw[3]) begin  //timer
                     n_state = SEND_UNIT_COLON;
-                end else if (sw[3] && !sw[2]) begin //sensor, sr04
+                end else if (sw[3] && !sw[2]) begin  //sensor, sr04
                     n_state = SEND_DATA_7;
+                end
                 end
             end
             SEND_DATA_7: begin
@@ -154,16 +133,12 @@ module ascii_sender (
                 if (!full) begin
                     push_next = 1;
                     data_out_next = {4'h3, data_in[3:0]};
-                    n_state = WAIT_DATA_LSB;
-                end
-            end
-            WAIT_DATA_LSB: begin
-                push_next=0;
-                if (sw[3] && sw[2]) begin  //dht11
+                    if (sw[3] && sw[2]) begin  //dht11
                     n_state = SEND_UNIT_STAR;
                 end else if (sw[3] && !sw[2]) begin  //sr04
                     cm_cnt_next = 0;
                     n_state = SEND_UNIT_CM;
+                end else n_state = SEND_BLANK;
                 end
             end
             SEND_UNIT_PERCENT: begin
@@ -203,7 +178,6 @@ module ascii_sender (
                         1: n_state = SEND_DATA_5;
                         2: n_state = SEND_DATA_7;
                         3: n_state = SEND_BLANK;
-                        default: n_state = SEND_BLANK; //예상치 못한 값일때 탈출
                     endcase
                     time_cnt_next = time_cnt_reg + 1;
                 end
