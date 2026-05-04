@@ -121,10 +121,10 @@ module ascii_decoder (
                         end
                         //BTNM  
                         8'h4D: begin
-                            n_state = BTNS;
+                            n_state = BTNM;
                         end
                         8'h6D: begin
-                            n_state = BTNS;
+                            n_state = BTNM;
                         end
                         //BTNT  
                         8'h54: begin
